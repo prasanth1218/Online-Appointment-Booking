@@ -1,0 +1,166 @@
+// Online Appointment Booking System — database schema
+// PostgreSQL via Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PATIENT
+  ADMIN
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+/// Application account. Patients register to book and manage appointments;
+/// admins manage doctors, specialties and schedules.
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  phone        String?
+  dateOfBirth  DateTime? @db.Date
+  role         UserRole @default(PATIENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  appointments  Appointment[]
+  refreshTokens RefreshToken[]
+
+  @@index([role])
+}
+
+/// Hashed refresh tokens, one row per active session, enabling rotation
+/// and per-session revocation instead of a single shared secret.
+model RefreshToken {
+  id         String   @id @default(uuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Medical specialty / service category (e.g. Cardiology, Dermatology).
+model Specialty {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String
+  icon        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doctors Doctor[]
+}
+
+/// A doctor profile available for booking. Doctors are managed as catalog
+/// data (seeded / admin-managed); they do not currently have their own
+/// login, which keeps the booking flow focused on the patient experience.
+model Doctor {
+  id                  String   @id @default(uuid())
+  fullName            String
+  title               String
+  specialtyId         String
+  specialty           Specialty @relation(fields: [specialtyId], references: [id])
+  bio                 String
+  photoUrl            String
+  yearsOfExperience   Int
+  consultationFee     Decimal  @db.Decimal(10, 2)
+  languages           String[]
+  clinicName          String
+  clinicAddress       String
+  slotDurationMinutes Int      @default(30)
+  rating              Decimal  @default(0) @db.Decimal(3, 2)
+  ratingCount         Int      @default(0)
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  availabilities WeeklyAvailability[]
+  timeOffs       DoctorTimeOff[]
+  appointments   Appointment[]
+
+  @@index([specialtyId])
+  @@index([isActive])
+}
+
+/// Recurring weekly working-hours template for a doctor. `dayOfWeek` follows
+/// JS/ISO convention: 0 = Sunday .. 6 = Saturday.
+model WeeklyAvailability {
+  id        String   @id @default(uuid())
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  startTime String   // "HH:mm", 24-hour, in the clinic's local time
+  endTime   String   // "HH:mm"
+  createdAt DateTime @default(now())
+
+  @@unique([doctorId, dayOfWeek, startTime, endTime])
+  @@index([doctorId])
+}
+
+/// A specific date (holiday, leave, fully booked externally) on which a
+/// doctor is entirely unavailable, overriding the weekly template.
+model DoctorTimeOff {
+  id        String   @id @default(uuid())
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@unique([doctorId, date])
+  @@index([doctorId])
+}
+
+/// A booked appointment. Patient contact details are snapshotted at
+/// booking time so that later profile edits never rewrite history, and a
+/// unique constraint on (doctorId, date, startTime) enforces "no double
+/// booking" as a hard database guarantee, not just an application check.
+model Appointment {
+  id            String            @id @default(uuid())
+  patientId     String
+  patient       User              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId      String
+  doctor        Doctor            @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  date          DateTime          @db.Date
+  startTime     String            // "HH:mm"
+  endTime       String            // "HH:mm"
+  status        AppointmentStatus @default(CONFIRMED)
+  reasonForVisit String
+  notes         String?
+
+  patientFullName String
+  patientEmail    String
+  patientPhone    String
+
+  cancelledAt     DateTime?
+  cancellationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NOTE: double-booking is prevented by a partial unique index added by
+  // hand in the initial migration — unique on (doctorId, date, startTime)
+  // WHERE status <> 'CANCELLED'. Prisma's schema DSL cannot express a
+  // partial index, so it is not declared here; see
+  // prisma/migrations/*_init/migration.sql for the enforced constraint.
+  @@index([patientId])
+  @@index([doctorId, date, startTime])
+  @@index([status])
+}
