@@ -199,6 +199,8 @@ npm run preview --prefix frontend  # preview the built frontend bundle
 
 In a real deployment, serve `frontend/dist` from a static host/CDN, run the backend as a long-lived Node
 process (or container) with `NODE_ENV=production`, and point `VITE_API_BASE_URL` at the backend's public URL.
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the actual $0-cost deployment this project uses
+(Cloudflare Pages + Render + Neon) and why those providers were chosen.
 
 ## Project structure
 

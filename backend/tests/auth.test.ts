@@ -109,7 +109,7 @@ describe("Auth", () => {
       email: "ada@example.com",
       password: "Passw0rd!",
     });
-    const cookie = registerRes.headers["set-cookie"];
+    const cookie = registerRes.headers["set-cookie"]!;
 
     const refreshRes = await request(app).post("/api/auth/refresh").set("Cookie", cookie);
     expect(refreshRes.status).toBe(200);
@@ -122,7 +122,7 @@ describe("Auth", () => {
       email: "ada@example.com",
       password: "Passw0rd!",
     });
-    const cookie = registerRes.headers["set-cookie"];
+    const cookie = registerRes.headers["set-cookie"]!;
 
     const logoutRes = await request(app).post("/api/auth/logout").set("Cookie", cookie);
     expect(logoutRes.status).toBe(200);

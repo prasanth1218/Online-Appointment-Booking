@@ -7,10 +7,16 @@ import * as authService from "./auth.service.js";
 
 const REFRESH_COOKIE_NAME = "refreshToken";
 
+// In production, the frontend (Cloudflare Pages) and backend (Render) are
+// deployed on different sites, so the refresh cookie must be sent
+// cross-site. "SameSite=None" requires "Secure", which is satisfied because
+// both platforms serve everything over HTTPS. In local development the
+// frontend proxies /api to the backend, making requests same-site, so "Lax"
+// is used there — "None" without HTTPS is rejected by browsers.
 const refreshCookieOptions: CookieOptions = {
   httpOnly: true,
   secure: env.isProduction,
-  sameSite: "lax",
+  sameSite: env.isProduction ? "none" : "lax",
   path: "/api/auth",
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };

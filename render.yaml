@@ -1,0 +1,43 @@
+# Render Blueprint for the Online Appointment Booking backend.
+#
+# Deploys backend/ as a free Node.js web service. The database (Neon
+# PostgreSQL) and frontend (Cloudflare Pages) are hosted elsewhere on their
+# own free tiers, so only the API lives here.
+#
+# Usage: Render dashboard -> New -> Blueprint -> select this repository.
+# You will be prompted once for DATABASE_URL and CORS_ORIGIN (see below);
+# JWT secrets are generated automatically by Render and never appear in
+# this file or in git.
+services:
+  - type: web
+    name: appointment-booking-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Neon PostgreSQL connection string. Set this in the Render dashboard —
+      # never commit a real value here.
+      - key: DATABASE_URL
+        sync: false
+      # The deployed frontend origin (e.g. https://your-project.pages.dev).
+      # Must be an exact origin, not a wildcard, because cookies are sent
+      # with credentials.
+      - key: CORS_ORIGIN
+        sync: false
+      # Render generates cryptographically random values for these and
+      # stores them as secrets — they are never written to this file.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TOKEN_TTL
+        value: 15m
+      - key: JWT_REFRESH_TOKEN_TTL
+        value: 7d
+      - key: LOG_LEVEL
+        value: info
